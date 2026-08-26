@@ -7,9 +7,9 @@ module TT
   module XoaVatLieu
     EXTENSION = SketchupExtension.new(
       'TT - Xóa vật liệu',
-      'tt_xoa_vat_lieu/main'
+      'TT-pro/main'
     )
-    EXTENSION.version = '1.0.3'
+    EXTENSION.version = '1.0.4'
     EXTENSION.creator = 'TRẦN TUẤN'
     EXTENSION.description = 'Xóa vật liệu đang chọn khỏi các mặt và đối tượng được chọn trong SketchUp.'
 
