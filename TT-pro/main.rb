@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.11'
+    VERSION = '1.0.12'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -96,7 +96,7 @@ module TT
         raise 'Độ dày phải lớn hơn 0 mm.' unless thickness.positive?
 
         Sketchup.active_model.select_tool(BoardTool.new(thickness, @dialog))
-        @dialog.execute_script("window.TTMaterial.status('Đang vẽ: click điểm đầu, điểm cuối chiều dài, rồi điểm xác định chiều rộng.')")
+        @dialog.execute_script("window.TTMaterial.status('Đang vẽ: click góc thứ nhất, rồi click góc chéo đối diện.')")
       rescue ArgumentError
         @dialog.execute_script("window.TTMaterial.status('Vui lòng nhập độ dày hợp lệ bằng mm.')")
       rescue StandardError => error
@@ -193,7 +193,7 @@ module TT
         @thickness = thickness
         @dialog = dialog
         @first_point = nil
-        @second_point = nil
+        @plane_normal = nil
         @preview = nil
       end
 
@@ -211,28 +211,22 @@ module TT
 
         point = point_on_drawing_plane(x, y, view)
         return unless point
-        if @first_point && @second_point
-          width_vector = width_vector_from_point(point, @first_point, @second_point)
-          @preview = [@first_point, @second_point, width_vector]
-          length_mm = @first_point.distance(@second_point) * 25.4
-          width_mm = width_vector.length * 25.4
-          Sketchup.set_status_text("Dài: %.1f mm | Rộng: %.1f mm | Dày: %.1f mm | Click để tạo" % [length_mm, width_mm, @thickness * 25.4], SB_PROMPT)
-        elsif @first_point
-          @preview = [@first_point, point, nil] if point
-        end
+        @preview = [@first_point, point]
+        dimensions = rectangle_dimensions(@first_point, point)
+        Sketchup.set_status_text("Dài: %.1f mm | Rộng: %.1f mm | Dày: %.1f mm | Click để tạo" % [dimensions[0] * 25.4, dimensions[1] * 25.4, @thickness * 25.4], SB_PROMPT)
         view.invalidate
       end
 
       def draw(view)
         return unless @preview
 
-        first, second, width_vector = @preview
+        first, second = @preview
         view.drawing_color = 'DodgerBlue'
         view.line_width = 2
-        if width_vector && width_vector.length > 0.001
-          view.draw(GL_LINE_LOOP, rectangle_points(first, second, width_vector))
+        if first.distance(second) > 0.001
+          view.draw(GL_LINE_LOOP, rectangle_points(first, second))
           view.drawing_color = 'LightBlue'
-          view.draw(GL_POLYGON, rectangle_points(first, second, width_vector))
+          view.draw(GL_POLYGON, rectangle_points(first, second))
         else
           view.draw(GL_LINE_STRIP, [first, second])
         end
@@ -242,20 +236,13 @@ module TT
         point = point_on_drawing_plane(x, y, view)
         return unless point
 
-        if @second_point
-          width_vector = width_vector_from_point(point, @first_point, @second_point)
-          if width_vector.length < 0.01
-            @dialog&.execute_script("window.TTMaterial.status('Chiều rộng quá nhỏ. Hãy click lệch khỏi đường chiều dài.')")
-          else
-            create_board(@first_point, @second_point, width_vector)
-            Sketchup.active_model.select_tool(nil)
-          end
-        elsif @first_point
-          @second_point = point
-          Sketchup.set_status_text('TT - Vẽ ván: chọn điểm xác định chiều rộng', SB_PROMPT)
+        if @first_point
+          create_board(@first_point, point)
+          Sketchup.active_model.select_tool(nil)
         else
           @first_point = point
-          Sketchup.set_status_text('TT - Vẽ ván: chọn điểm cuối chiều dài', SB_PROMPT)
+          @plane_normal ||= Z_AXIS.clone
+          Sketchup.set_status_text('TT - Vẽ ván: chọn góc chéo đối diện', SB_PROMPT)
         end
       end
 
@@ -268,12 +255,16 @@ module TT
       def point_on_drawing_plane(x, y, view)
         input_point = Sketchup::InputPoint.new
         input_point.pick(view, x, y)
+        if !@first_point && input_point.respond_to?(:face) && input_point.face
+          @plane_normal = input_point.face.normal
+        end
         point = input_point.valid? ? input_point.position : nil
         if point.nil?
-          plane_z = @first_point ? @first_point.z : 0.0
+          plane_point = @first_point || Geom::Point3d.new(0, 0, 0)
+          plane_normal = @plane_normal || Z_AXIS
           point = Geom.intersect_line_plane(
             view.pickray(x, y),
-            [Geom::Point3d.new(0, 0, plane_z), Z_AXIS]
+            [plane_point, plane_normal]
           )
         end
         return unless point
@@ -281,30 +272,43 @@ module TT
         Geom::Point3d.new(point.x, point.y, @first_point ? @first_point.z : point.z)
       end
 
-      def width_vector_from_point(point, first, second)
-        line = second - first
-        return Geom::Vector3d.new(0, 0, 0) if line.length < 0.001
-
-        line.normalize!
-        relative = point - first
-        relative - (line * relative.dot(line))
+      def rectangle_axes
+        normal = (@plane_normal || Z_AXIS).clone
+        normal.normalize!
+        axis = X_AXIS - (normal * X_AXIS.dot(normal))
+        axis = Y_AXIS - (normal * Y_AXIS.dot(normal)) if axis.length < 0.001
+        axis.normalize!
+        other = normal.cross(axis)
+        other.normalize!
+        [axis, other]
       end
 
-      def rectangle_points(first, second, width_vector)
-        [first, second, second + width_vector, first + width_vector]
+      def rectangle_dimensions(first, second)
+        axis, other = rectangle_axes
+        diagonal = second - first
+        [diagonal.dot(axis).abs, diagonal.dot(other).abs]
       end
 
-      def create_board(first, second, width_vector)
-        return if first.distance(second) < 0.01 || width_vector.length < 0.01
+      def rectangle_points(first, second)
+        axis, other = rectangle_axes
+        diagonal = second - first
+        length = diagonal.dot(axis)
+        width = diagonal.dot(other)
+        [first, first + axis * length, first + axis * length + other * width, first + other * width]
+      end
+
+      def create_board(first, second)
+        length, width = rectangle_dimensions(first, second)
+        return if length < 0.01 || width < 0.01
 
         model = Sketchup.active_model
         model.start_operation('TT - Vẽ ván', true)
         group = model.active_entities.add_group
-        face = group.entities.add_face(rectangle_points(first, second, width_vector))
-        face.reverse! if face.normal.dot(Z_AXIS).negative?
+        face = group.entities.add_face(rectangle_points(first, second))
+        face.reverse! if face.normal.dot(@plane_normal || Z_AXIS).negative?
         face.pushpull(@thickness)
         model.commit_operation
-        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván theo hướng bắt điểm. Dài #{first.distance(second) * 25.4} mm, rộng #{width_vector.length * 25.4} mm, dày #{@thickness * 25.4} mm.')")
+        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván. Dài #{length * 25.4} mm, rộng #{width * 25.4} mm, dày #{@thickness * 25.4} mm.')")
       rescue StandardError => error
         model.abort_operation if model&.operation_started?
         @dialog&.execute_script("window.TTMaterial.status(#{"Không thể tạo ván: #{error.message}".to_json})")

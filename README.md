@@ -17,7 +17,7 @@ Nguoi choi co quyen `antifly.alert` (mac dinh la operator) se nhan duoc canh bao
 ## SketchUp extension
 
 Extension: **TT - Xóa vật liệu**  
-Version: **1.0.11**  
+Version: **1.0.12**  
 Creator: **TRẦN TUẤN**
 
 ### Chức năng
@@ -28,12 +28,12 @@ Creator: **TRẦN TUẤN**
 - Mỗi nút đều gọi callback Ruby: xóa vật liệu, làm mới trạng thái và kiểm tra cập nhật.
 - Tạo một operation duy nhất để có thể hoàn tác bằng `Ctrl + Z`.
 - Có icon SVG dùng cho nhận diện extension và toolbar.
-- Vẽ ván bằng chuột: sau 2 điểm sẽ có preview chạy theo chuột, click điểm thứ 3 để xác nhận chiều rộng; chỉ nhập độ dày theo mm.
+- Vẽ ván bằng chuột như Rectangle: click góc thứ nhất, di chuyển xem preview, click góc chéo đối diện; tự nhận biết chiều dài và rộng, chỉ nhập độ dày theo mm.
 
 ### Cài đặt RBZ
 
 1. Mở SketchUp > `Extension Manager` > `Install Extension`.
-2. Chọn file `TT-pro-1.0.11.rbz`.
+2. Chọn file `TT-pro-1.0.12.rbz`.
 3. Vào `Extensions > TT - Xóa vật liệu`.
 4. Chọn vật liệu trong bảng Materials, chọn mặt/group/component, rồi bấm `Xóa vật liệu đang chọn`.
 
