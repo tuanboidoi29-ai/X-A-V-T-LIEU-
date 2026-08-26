@@ -1,0 +1,74 @@
+name: Build and publish TT-pro
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag phien ban, vi du v1.0.12'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          VERSION="${TAG#v}"
+          if [[ "$TAG" != v* || -z "$VERSION" ]]; then
+            echo "Tag khong hop le: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build RBZ
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          test -f TT-pro.rb
+          test -f TT-pro/main.rb
+          ASSET="TT-pro-${VERSION}.rbz"
+          zip -qr "$ASSET" TT-pro.rb TT-pro
+          echo "asset=$ASSET" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release and upload RBZ
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" "$asset" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "TT-pro $TAG" \
+            --generate-notes
+
+      - name: Update online manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          MANIFEST_URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/TT-pro-${VERSION}.rbz"
+          CONTENT=$(printf '{\n  "version": "%s",\n  "url": "%s"\n}\n' "$VERSION" "$MANIFEST_URL" | base64 -w0)
+          SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/update.json?ref=main" --jq '.sha')
+          gh api "repos/${GITHUB_REPOSITORY}/contents/update.json" \
+            --method PUT \
+            --field message="Update manifest to ${VERSION}" \
+            --field content="$CONTENT" \
+            --field sha="$SHA" \
+            --field branch=main

@@ -46,3 +46,7 @@ Nút `Kiểm tra bản cập nhật` sẽ tải và cài RBZ qua HTTPS bằng `S
 ```
 
 Việc xóa vật liệu không tự động diễn ra trên toàn model; chỉ các đối tượng người dùng đã chọn mới bị thay đổi.
+
+### Phát hành tự động
+
+Mỗi lần push tag dạng `v1.0.12` lên GitHub, workflow sẽ tự đóng gói RBZ, tạo Release, upload file và cập nhật `update.json`. Có thể chạy thủ công workflow bằng `Actions > Build and publish TT-pro` với tag phiên bản.
