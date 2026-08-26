@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.5'
+    VERSION = '1.0.6'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -47,6 +47,7 @@ module TT
         end
 
         @dialog.add_action_callback('check_update') do |_context|
+          @dialog.execute_script("window.TTMaterial.status('Đang kiểm tra bản cập nhật...')")
           check_for_update
         end
 
@@ -153,15 +154,7 @@ module TT
         @dialog.execute_script("window.TTMaterial.status('Đang tải bản cập nhật...')")
         temporary_file = Tempfile.new(['tt-xoa-vat-lieu-', '.rbz'])
         temporary_file.binmode
-        response = Net::HTTP.start(
-          download_url.host,
-          download_url.port,
-          use_ssl: true,
-          open_timeout: 10,
-          read_timeout: 60
-        ) do |http|
-          http.request(Net::HTTP::Get.new(download_url.request_uri))
-        end
+        response = download_with_redirects(download_url)
         raise "Tải cập nhật thất bại (HTTP #{response.code})." unless response.is_a?(Net::HTTPSuccess)
 
         temporary_file.write(response.body)
@@ -171,6 +164,27 @@ module TT
         @dialog.execute_script("window.TTMaterial.status('Đã cập nhật lên phiên bản #{manifest.fetch('version')}. Không cần khởi động lại SketchUp.')")
       ensure
         temporary_file&.close!
+      end
+
+      def download_with_redirects(uri, limit = 5)
+        raise 'URL cập nhật phải dùng HTTPS.' unless uri.scheme == 'https'
+        raise 'URL cập nhật chuyển hướng quá nhiều lần.' if limit.zero?
+
+        response = Net::HTTP.start(
+          uri.host,
+          uri.port,
+          use_ssl: true,
+          open_timeout: 10,
+          read_timeout: 60
+        ) do |http|
+          request = Net::HTTP::Get.new(uri.request_uri)
+          request['User-Agent'] = 'TT-pro-Sketchup-Extension'
+          http.request(request)
+        end
+
+        return download_with_redirects(URI.join(uri.to_s, response['location']), limit - 1) if response.is_a?(Net::HTTPRedirection)
+
+        response
       end
     end
 
