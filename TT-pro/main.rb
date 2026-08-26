@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.9'
+    VERSION = '1.0.10'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -244,8 +244,12 @@ module TT
 
         if @second_point
           width = distance_from_line(point, @first_point, @second_point)
-          create_board(@first_point, @second_point, width)
-          Sketchup.active_model.select_tool(nil)
+          if width < 0.01
+            @dialog&.execute_script("window.TTMaterial.status('Chiều rộng quá nhỏ. Hãy click lệch khỏi đường chiều dài.')")
+          else
+            create_board(@first_point, @second_point, width)
+            Sketchup.active_model.select_tool(nil)
+          end
         elsif @first_point
           @second_point = point
           Sketchup.set_status_text('TT - Vẽ ván: chọn điểm xác định chiều rộng', SB_PROMPT)
@@ -264,7 +268,14 @@ module TT
       def point_on_drawing_plane(x, y, view)
         input_point = Sketchup::InputPoint.new
         input_point.pick(view, x, y)
-        point = input_point.position
+        point = input_point.valid? ? input_point.position : nil
+        if point.nil?
+          plane_z = @first_point ? @first_point.z : 0.0
+          point = Geom.intersect_line_plane(
+            view.pickray(x, y),
+            [Geom::Point3d.new(0, 0, plane_z), Z_AXIS]
+          )
+        end
         return unless point
 
         Geom::Point3d.new(point.x, point.y, @first_point ? @first_point.z : point.z)
