@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.6'
+    VERSION = '1.0.7'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -51,8 +51,8 @@ module TT
           check_for_update
         end
 
-        @dialog.add_action_callback('draw_board') do |_context, thickness_mm|
-          start_board_tool(thickness_mm)
+        @dialog.add_action_callback('draw_board') do |_context, width_mm, thickness_mm|
+          start_board_tool(width_mm, thickness_mm)
         end
       end
 
@@ -91,11 +91,12 @@ module TT
         "Không thể xóa vật liệu: #{error.message}"
       end
 
-      def start_board_tool(thickness_mm)
+      def start_board_tool(width_mm, thickness_mm)
+        width = Float(width_mm) / 25.4
         thickness = Float(thickness_mm) / 25.4
-        raise 'Độ dày phải lớn hơn 0 mm.' unless thickness.positive?
+        raise 'Chiều rộng và độ dày phải lớn hơn 0 mm.' unless width.positive? && thickness.positive?
 
-        Sketchup.active_model.select_tool(BoardTool.new(thickness, @dialog))
+        Sketchup.active_model.select_tool(BoardTool.new(width, thickness, @dialog))
         @dialog.execute_script("window.TTMaterial.status('Đang vẽ: click góc thứ nhất, rồi click góc đối diện.')")
       rescue ArgumentError
         @dialog.execute_script("window.TTMaterial.status('Vui lòng nhập độ dày hợp lệ bằng mm.')")
@@ -189,7 +190,8 @@ module TT
     end
 
     class BoardTool
-      def initialize(thickness, dialog)
+      def initialize(width, thickness, dialog)
+        @width = width
         @thickness = thickness
         @dialog = dialog
         @first_point = nil
@@ -251,8 +253,16 @@ module TT
       end
 
       def rectangle_points(first, second)
-        [first, Geom::Point3d.new(second.x, first.y, first.z), second,
-         Geom::Point3d.new(first.x, second.y, first.z)]
+        direction = second - first
+        direction.z = 0
+        return [first, first, second, second] if direction.length < 0.001
+
+        direction.normalize!
+        perpendicular = Geom::Vector3d.new(-direction.y, direction.x, 0)
+        offset = perpendicular
+        offset.length = @width
+        [first + offset * 0.5, second + offset * 0.5,
+         second - offset * 0.5, first - offset * 0.5]
       end
 
       def create_board(first, second)
@@ -265,7 +275,7 @@ module TT
         face.reverse! if face.normal.z.negative?
         face.pushpull(@thickness)
         model.commit_operation
-        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván. Kích thước đang theo vùng kéo, độ dày #{@thickness * 25.4} mm.')")
+        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván theo hướng bắt điểm. Rộng #{@width * 25.4} mm, dày #{@thickness * 25.4} mm.')")
       rescue StandardError => error
         model.abort_operation if model&.operation_started?
         @dialog&.execute_script("window.TTMaterial.status(#{"Không thể tạo ván: #{error.message}".to_json})")
