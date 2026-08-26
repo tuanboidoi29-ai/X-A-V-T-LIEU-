@@ -3,11 +3,12 @@
 require 'sketchup.rb'
 require 'json'
 require 'net/http'
+require 'tempfile'
 require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.1'
+    VERSION = '1.0.2'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -117,7 +118,7 @@ module TT
           manifest = JSON.parse(Net::HTTP.get(uri))
           latest = manifest.fetch('version')
           if Gem::Version.new(latest) > Gem::Version.new(VERSION)
-            @dialog.execute_script("window.TTMaterial.update(#{manifest.to_json})")
+            install_update(manifest)
           else
             @dialog.execute_script("window.TTMaterial.status('Bạn đang dùng phiên bản mới nhất (#{VERSION}).')")
           end
@@ -127,6 +128,33 @@ module TT
         @dialog.execute_script("window.TTMaterial.status('Nút cập nhật đã sẵn sàng. Hãy cấu hình UPDATE_MANIFEST_URL trong main.rb để dùng máy chủ phát hành.')")
       rescue StandardError => error
         @dialog.execute_script("window.TTMaterial.status(#{"Không kiểm tra được cập nhật: #{error.message}".to_json})")
+      end
+
+      def install_update(manifest)
+        download_url = URI.parse(manifest.fetch('url'))
+        raise 'URL cập nhật phải dùng HTTPS.' unless download_url.scheme == 'https'
+
+        @dialog.execute_script("window.TTMaterial.status('Đang tải bản cập nhật...')")
+        temporary_file = Tempfile.new(['tt-xoa-vat-lieu-', '.rbz'])
+        temporary_file.binmode
+        response = Net::HTTP.start(
+          download_url.host,
+          download_url.port,
+          use_ssl: true,
+          open_timeout: 10,
+          read_timeout: 60
+        ) do |http|
+          http.request(Net::HTTP::Get.new(download_url.request_uri))
+        end
+        raise "Tải cập nhật thất bại (HTTP #{response.code})." unless response.is_a?(Net::HTTPSuccess)
+
+        temporary_file.write(response.body)
+        temporary_file.close
+        Sketchup.install_from_archive(temporary_file.path)
+        load File.join(__dir__, 'main.rb')
+        @dialog.execute_script("window.TTMaterial.status('Đã cập nhật lên phiên bản #{manifest.fetch('version')}. Không cần khởi động lại SketchUp.')")
+      ensure
+        temporary_file&.close!
       end
     end
 

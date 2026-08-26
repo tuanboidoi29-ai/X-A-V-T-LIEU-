@@ -17,7 +17,7 @@ Nguoi choi co quyen `antifly.alert` (mac dinh la operator) se nhan duoc canh bao
 ## SketchUp extension
 
 Extension: **TT - Xóa vật liệu**  
-Version: **1.0.1**  
+Version: **1.0.2**  
 Creator: **TRẦN TUẤN**
 
 ### Chức năng
@@ -32,16 +32,16 @@ Creator: **TRẦN TUẤN**
 ### Cài đặt RBZ
 
 1. Mở SketchUp > `Extension Manager` > `Install Extension`.
-2. Chọn file `TT-XoaVatLieu-1.0.1.rbz`.
+2. Chọn file `TT-XoaVatLieu-1.0.2.rbz`.
 3. Vào `Extensions > TT - Xóa vật liệu`.
 4. Chọn vật liệu trong bảng Materials, chọn mặt/group/component, rồi bấm `Xóa vật liệu đang chọn`.
 
 ### Cập nhật không khởi động lại
 
-Callback `Kiểm tra bản cập nhật` đã có sẵn. Để bật máy chủ cập nhật, điền URL manifest JSON vào `UPDATE_MANIFEST_URL` trong `tt_xoa_vat_lieu/main.rb`. Manifest có dạng:
+Nút `Kiểm tra bản cập nhật` sẽ tải và cài RBZ qua HTTPS bằng `Sketchup.install_from_archive`, sau đó nạp lại module mà không cần khởi động lại SketchUp. Manifest có dạng:
 
 ```json
-{"version":"1.0.1","url":"https://example.com/TT-XoaVatLieu-1.0.1.rbz"}
+{"version":"1.0.2","url":"https://example.com/TT-XoaVatLieu-1.0.2.rbz"}
 ```
 
 Việc xóa vật liệu không tự động diễn ra trên toàn model; chỉ các đối tượng người dùng đã chọn mới bị thay đổi.
