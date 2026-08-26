@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.4'
+    VERSION = '1.0.5'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -271,6 +271,14 @@ module TT
 
       toolbar = UI::Toolbar.new('TT - Xóa vật liệu')
       toolbar.add_item(command)
+      board_command = UI::Command.new('Vẽ ván bằng chuột') { show_dialog }
+      board_command.tooltip = 'Vẽ ván bằng chuột'
+      board_command.status_bar_text = 'Mở công cụ vẽ ván bằng chuột'
+      board_icon_path = File.join(__dir__, 'board_icon.svg')
+      board_command.small_icon = board_icon_path
+      board_command.large_icon = board_icon_path
+      menu.add_item(board_command)
+      toolbar.add_item(board_command)
       toolbar.show
       file_loaded(__FILE__)
     end
