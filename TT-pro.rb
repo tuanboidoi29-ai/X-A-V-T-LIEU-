@@ -9,7 +9,7 @@ module TT
       'TT - Xóa vật liệu',
       'TT-pro/main'
     )
-    EXTENSION.version = '1.0.8'
+    EXTENSION.version = '1.0.9'
     EXTENSION.creator = 'TRẦN TUẤN'
     EXTENSION.description = 'Xóa vật liệu đang chọn khỏi các mặt và đối tượng được chọn trong SketchUp.'
 

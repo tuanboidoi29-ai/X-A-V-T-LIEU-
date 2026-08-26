@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.8'
+    VERSION = '1.0.9'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -213,7 +213,10 @@ module TT
         return unless point
         if @first_point && @second_point
           width = distance_from_line(point, @first_point, @second_point)
-          @preview = [@first_point, @second_point, width] if width
+          @preview = [@first_point, @second_point, width]
+          length_mm = @first_point.distance(@second_point) * 25.4
+          width_mm = width * 25.4
+          Sketchup.set_status_text("Dài: %.1f mm | Rộng: %.1f mm | Dày: %.1f mm | Click để tạo" % [length_mm, width_mm, @thickness * 25.4], SB_PROMPT)
         elsif @first_point
           @preview = [@first_point, point, nil] if point
         end
@@ -228,6 +231,8 @@ module TT
         view.line_width = 2
         if width && width > 0.001
           view.draw(GL_LINE_LOOP, rectangle_points(first, second, width))
+          view.drawing_color = 'LightBlue'
+          view.draw(GL_POLYGON, rectangle_points(first, second, width))
         else
           view.draw(GL_LINE_STRIP, [first, second])
         end
