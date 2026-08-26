@@ -29,11 +29,9 @@
   <section class="panel">
     <p id="status">Chọn vật liệu trong Materials và chọn mặt hoặc group cần xử lý.</p>
     <button class="primary" onclick="sketchup.remove_material()">Xóa vật liệu đang chọn</button>
-    <label class="label" for="width">Chiều rộng ván (mm)</label>
-    <input id="width" type="number" min="0.1" step="1" value="600">
     <label class="label" for="thickness">Độ dày ván (mm)</label>
     <input id="thickness" type="number" min="0.1" step="0.1" value="18">
-    <button class="primary" onclick="sketchup.draw_board(width.value, thickness.value)">Vẽ ván bằng chuột</button>
+    <button class="primary" onclick="sketchup.draw_board(thickness.value)">Vẽ ván bằng chuột</button>
     <button class="secondary" onclick="sketchup.refresh()">Làm mới trạng thái</button>
     <button class="secondary" onclick="sketchup.check_update()">Kiểm tra bản cập nhật</button>
   </section>
