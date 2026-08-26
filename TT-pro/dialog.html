@@ -17,6 +17,9 @@
     .primary { background: #126b5b; color: #fff; } .secondary { background: #e8eef0; color: #18212b; }
     input { box-sizing: border-box; width: 100%; border: 1px solid #cbd4da; border-radius: 5px; padding: 10px; margin-top: 6px; font-size: 14px; }
     #status { min-height: 42px; margin: 0; font-size: 13px; }
+    .preview { height: 110px; margin-top: 12px; border: 1px solid #dce2e7; border-radius: 6px; background: #f8faf9; display: grid; place-items: center; overflow: hidden; }
+    .board-preview { width: 170px; height: 58px; background: #e7c46a; border: 2px solid #126b5b; transform: rotate(-10deg); box-shadow: 7px 7px 0 #b8d2c9; transition: width .08s, height .08s; }
+    .dimensions { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #5e6873; font-size: 12px; }
     footer { text-align: right; color: #7b858e; font-size: 12px; }
   </style>
 </head>
@@ -28,6 +31,8 @@
   </section>
   <section class="panel">
     <p id="status">Chọn vật liệu trong Materials và chọn mặt hoặc group cần xử lý.</p>
+    <div class="preview"><div id="boardPreview" class="board-preview"></div></div>
+    <div class="dimensions"><span>Dài: <b id="previewLength">-</b></span><span>Rộng: <b id="previewWidth">-</b></span></div>
     <button class="primary" onclick="sketchup.remove_material()">Xóa vật liệu đang chọn</button>
     <label class="label" for="thickness">Độ dày ván (mm)</label>
     <input id="thickness" type="number" min="0.1" step="0.1" value="18">
@@ -40,7 +45,14 @@
     window.TTMaterial = {
       refresh(data) { material.textContent = data.material; selection.textContent = data.selection; version.textContent = data.version; },
       status(message) { status.textContent = message; },
-      update(data) { status.textContent = 'Có phiên bản ' + data.version + '. Tải bản cập nhật: ' + data.url; }
+      update(data) { status.textContent = 'Có phiên bản ' + data.version + '. Tải bản cập nhật: ' + data.url; },
+      preview(data) {
+        const length = Math.max(18, Math.min(220, data[0] * 0.12));
+        const width = Math.max(12, Math.min(82, data[1] * 0.12));
+        boardPreview.style.width = length + 'px'; boardPreview.style.height = width + 'px';
+        previewLength.textContent = (data[0] * 25.4).toFixed(1) + ' mm'; previewWidth.textContent = (data[1] * 25.4).toFixed(1) + ' mm';
+      },
+      clearPreview() { previewLength.textContent = '-'; previewWidth.textContent = '-'; }
     };
   </script>
 </body>

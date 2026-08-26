@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.12'
+    VERSION = '1.0.13'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -203,6 +203,7 @@ module TT
 
       def deactivate(view)
         view.invalidate
+        @dialog&.execute_script('window.TTMaterial.clearPreview()')
         Sketchup.set_status_text('', SB_PROMPT)
       end
 
@@ -213,6 +214,7 @@ module TT
         return unless point
         @preview = [@first_point, point]
         dimensions = rectangle_dimensions(@first_point, point)
+        @dialog&.execute_script("window.TTMaterial.preview(#{dimensions.to_json})")
         Sketchup.set_status_text("Dài: %.1f mm | Rộng: %.1f mm | Dày: %.1f mm | Click để tạo" % [dimensions[0] * 25.4, dimensions[1] * 25.4, @thickness * 25.4], SB_PROMPT)
         view.invalidate
       end
