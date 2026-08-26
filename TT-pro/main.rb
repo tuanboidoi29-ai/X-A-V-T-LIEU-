@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.10'
+    VERSION = '1.0.11'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -212,10 +212,10 @@ module TT
         point = point_on_drawing_plane(x, y, view)
         return unless point
         if @first_point && @second_point
-          width = distance_from_line(point, @first_point, @second_point)
-          @preview = [@first_point, @second_point, width]
+          width_vector = width_vector_from_point(point, @first_point, @second_point)
+          @preview = [@first_point, @second_point, width_vector]
           length_mm = @first_point.distance(@second_point) * 25.4
-          width_mm = width * 25.4
+          width_mm = width_vector.length * 25.4
           Sketchup.set_status_text("Dài: %.1f mm | Rộng: %.1f mm | Dày: %.1f mm | Click để tạo" % [length_mm, width_mm, @thickness * 25.4], SB_PROMPT)
         elsif @first_point
           @preview = [@first_point, point, nil] if point
@@ -226,13 +226,13 @@ module TT
       def draw(view)
         return unless @preview
 
-        first, second, width = @preview
+        first, second, width_vector = @preview
         view.drawing_color = 'DodgerBlue'
         view.line_width = 2
-        if width && width > 0.001
-          view.draw(GL_LINE_LOOP, rectangle_points(first, second, width))
+        if width_vector && width_vector.length > 0.001
+          view.draw(GL_LINE_LOOP, rectangle_points(first, second, width_vector))
           view.drawing_color = 'LightBlue'
-          view.draw(GL_POLYGON, rectangle_points(first, second, width))
+          view.draw(GL_POLYGON, rectangle_points(first, second, width_vector))
         else
           view.draw(GL_LINE_STRIP, [first, second])
         end
@@ -243,11 +243,11 @@ module TT
         return unless point
 
         if @second_point
-          width = distance_from_line(point, @first_point, @second_point)
-          if width < 0.01
+          width_vector = width_vector_from_point(point, @first_point, @second_point)
+          if width_vector.length < 0.01
             @dialog&.execute_script("window.TTMaterial.status('Chiều rộng quá nhỏ. Hãy click lệch khỏi đường chiều dài.')")
           else
-            create_board(@first_point, @second_point, width)
+            create_board(@first_point, @second_point, width_vector)
             Sketchup.active_model.select_tool(nil)
           end
         elsif @first_point
@@ -281,37 +281,30 @@ module TT
         Geom::Point3d.new(point.x, point.y, @first_point ? @first_point.z : point.z)
       end
 
-      def distance_from_line(point, first, second)
+      def width_vector_from_point(point, first, second)
         line = second - first
-        return 0 if line.length < 0.001
+        return Geom::Vector3d.new(0, 0, 0) if line.length < 0.001
 
+        line.normalize!
         relative = point - first
-        ((relative.x * line.y) - (relative.y * line.x)).abs / line.length
+        relative - (line * relative.dot(line))
       end
 
-      def rectangle_points(first, second, width)
-        direction = second - first
-        direction.z = 0
-        return [first, first, second, second] if direction.length < 0.001
-
-        direction.normalize!
-        perpendicular = Geom::Vector3d.new(-direction.y, direction.x, 0)
-        perpendicular.length = width
-        [first + perpendicular * 0.5, second + perpendicular * 0.5,
-         second - perpendicular * 0.5, first - perpendicular * 0.5]
+      def rectangle_points(first, second, width_vector)
+        [first, second, second + width_vector, first + width_vector]
       end
 
-      def create_board(first, second, width)
-        return if first.distance(second) < 0.01 || width < 0.01
+      def create_board(first, second, width_vector)
+        return if first.distance(second) < 0.01 || width_vector.length < 0.01
 
         model = Sketchup.active_model
         model.start_operation('TT - Vẽ ván', true)
         group = model.active_entities.add_group
-        face = group.entities.add_face(rectangle_points(first, second, width))
-        face.reverse! if face.normal.z.negative?
+        face = group.entities.add_face(rectangle_points(first, second, width_vector))
+        face.reverse! if face.normal.dot(Z_AXIS).negative?
         face.pushpull(@thickness)
         model.commit_operation
-        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván theo hướng bắt điểm. Dài #{first.distance(second) * 25.4} mm, rộng #{width * 25.4} mm, dày #{@thickness * 25.4} mm.')")
+        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván theo hướng bắt điểm. Dài #{first.distance(second) * 25.4} mm, rộng #{width_vector.length * 25.4} mm, dày #{@thickness * 25.4} mm.')")
       rescue StandardError => error
         model.abort_operation if model&.operation_started?
         @dialog&.execute_script("window.TTMaterial.status(#{"Không thể tạo ván: #{error.message}".to_json})")
