@@ -7,7 +7,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.0'
+    VERSION = '1.0.1'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -86,21 +86,28 @@ module TT
       end
 
       def clear_material(entity, material)
+        return 0 unless entity.valid?
+
         changed = 0
-        if entity.is_a?(Sketchup::Face)
+        if entity.respond_to?(:material) && entity.respond_to?(:material=)
           if entity.material == material
             entity.material = nil
             changed += 1
           end
+        end
+        if entity.respond_to?(:back_material) && entity.respond_to?(:back_material=)
           if entity.back_material == material
             entity.back_material = nil
             changed += 1
           end
-        elsif entity.respond_to?(:definition)
-          entity.definition.entities.each { |child| changed += clear_material(child, material) }
-        elsif entity.respond_to?(:entities)
-          entity.entities.each { |child| changed += clear_material(child, material) }
         end
+
+        children = if entity.is_a?(Sketchup::ComponentInstance)
+                     entity.definition.entities
+                   elsif entity.is_a?(Sketchup::Group)
+                     entity.entities
+                   end
+        children&.each { |child| changed += clear_material(child, material) }
         changed
       end
 
