@@ -8,7 +8,7 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.2'
+    VERSION = '1.0.3'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
@@ -49,6 +49,10 @@ module TT
         @dialog.add_action_callback('check_update') do |_context|
           check_for_update
         end
+
+        @dialog.add_action_callback('draw_board') do |_context, thickness_mm|
+          start_board_tool(thickness_mm)
+        end
       end
 
       def refresh_dialog
@@ -84,6 +88,18 @@ module TT
       rescue StandardError => error
         model.abort_operation if model&.operation_started?
         "Không thể xóa vật liệu: #{error.message}"
+      end
+
+      def start_board_tool(thickness_mm)
+        thickness = Float(thickness_mm) / 25.4
+        raise 'Độ dày phải lớn hơn 0 mm.' unless thickness.positive?
+
+        Sketchup.active_model.select_tool(BoardTool.new(thickness, @dialog))
+        @dialog.execute_script("window.TTMaterial.status('Đang vẽ: click góc thứ nhất, rồi click góc đối diện.')")
+      rescue ArgumentError
+        @dialog.execute_script("window.TTMaterial.status('Vui lòng nhập độ dày hợp lệ bằng mm.')")
+      rescue StandardError => error
+        @dialog.execute_script("window.TTMaterial.status(#{error.message.to_json})")
       end
 
       def clear_material(entity, material)
@@ -155,6 +171,90 @@ module TT
         @dialog.execute_script("window.TTMaterial.status('Đã cập nhật lên phiên bản #{manifest.fetch('version')}. Không cần khởi động lại SketchUp.')")
       ensure
         temporary_file&.close!
+      end
+    end
+
+    class BoardTool
+      def initialize(thickness, dialog)
+        @thickness = thickness
+        @dialog = dialog
+        @first_point = nil
+        @preview = nil
+      end
+
+      def activate
+        Sketchup.set_status_text('TT - Vẽ ván: chọn góc thứ nhất', SB_PROMPT)
+      end
+
+      def deactivate(view)
+        view.invalidate
+        Sketchup.set_status_text('', SB_PROMPT)
+      end
+
+      def onMouseMove(_flags, x, y, view)
+        return unless @first_point
+
+        point = point_on_drawing_plane(x, y, view)
+        @preview = [@first_point, point] if point
+        view.invalidate
+      end
+
+      def draw(view)
+        return unless @preview
+
+        first, second = @preview
+        view.drawing_color = 'DodgerBlue'
+        view.line_width = 2
+        view.draw(GL_LINE_LOOP, rectangle_points(first, second))
+      end
+
+      def onLButtonDown(_flags, x, y, view)
+        point = point_on_drawing_plane(x, y, view)
+        return unless point
+
+        if @first_point
+          create_board(@first_point, point)
+          Sketchup.active_model.select_tool(nil)
+        else
+          @first_point = point
+          Sketchup.set_status_text('TT - Vẽ ván: chọn góc đối diện', SB_PROMPT)
+        end
+      end
+
+      def onKeyDown(key, _repeat, _flags, _view)
+        Sketchup.active_model.select_tool(nil) if key == 27
+      end
+
+      private
+
+      def point_on_drawing_plane(x, y, view)
+        input_point = Sketchup::InputPoint.new
+        input_point.pick(view, x, y)
+        point = input_point.position
+        return unless point
+
+        Geom::Point3d.new(point.x, point.y, @first_point ? @first_point.z : point.z)
+      end
+
+      def rectangle_points(first, second)
+        [first, Geom::Point3d.new(second.x, first.y, first.z), second,
+         Geom::Point3d.new(first.x, second.y, first.z)]
+      end
+
+      def create_board(first, second)
+        return if first.distance(second) < 0.01
+
+        model = Sketchup.active_model
+        model.start_operation('TT - Vẽ ván', true)
+        group = model.active_entities.add_group
+        face = group.entities.add_face(rectangle_points(first, second))
+        face.reverse! if face.normal.z.negative?
+        face.pushpull(@thickness)
+        model.commit_operation
+        @dialog&.execute_script("window.TTMaterial.status('Đã tạo ván. Kích thước đang theo vùng kéo, độ dày #{@thickness * 25.4} mm.')")
+      rescue StandardError => error
+        model.abort_operation if model&.operation_started?
+        @dialog&.execute_script("window.TTMaterial.status(#{"Không thể tạo ván: #{error.message}".to_json})")
       end
     end
 
