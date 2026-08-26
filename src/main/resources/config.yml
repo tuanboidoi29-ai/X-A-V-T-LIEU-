@@ -1,0 +1,7 @@
+checks:
+  violations-before-alert: 3
+  violation-decay-seconds: 5
+  max-upward-distance: 0.65
+
+messages:
+  alert: "&c[AntiFly] &f%player% &7co dau hieu bay bat thuong (&e%violations%&7/&e%threshold%&7)."

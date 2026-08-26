@@ -1,0 +1,10 @@
+name: AntiFly
+version: 1.0.0
+main: vn.antifly.AntiFlyPlugin
+api-version: '1.21'
+author: ServerTeam
+description: Phat hien va canh bao nguoi choi bay bat thuong.
+permissions:
+  antifly.alert:
+    description: Nhan canh bao tu AntiFly
+    default: op
