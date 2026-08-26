@@ -8,56 +8,78 @@ require 'uri'
 
 module TT
   module XoaVatLieu
-    VERSION = '1.0.13'
+    VERSION = '1.0.14'
     UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/tuanboidoi29-ai/X-A-V-T-LIEU-/main/update.json'
     DIALOG_TITLE = 'TT - Xóa vật liệu'
     MENU_LABEL = 'TT - Xóa vật liệu'
 
     class << self
-      def show_dialog
-        create_dialog unless @dialog
-        refresh_dialog
-        @dialog.show
+      def show_remove_dialog
+        show_dialog(:remove, 'remove_dialog.html', 'TT - Xóa vật liệu')
       end
 
-      def create_dialog
-        @dialog = UI::HtmlDialog.new(
-          dialog_title: DIALOG_TITLE,
-          preferences_key: 'tt_xoa_vat_lieu',
+      def show_board_dialog
+        show_dialog(:board, 'board_dialog.html', 'TT - Vẽ ván')
+      end
+
+      def show_update_dialog
+        show_dialog(:update, 'update_dialog.html', 'TT - Cập nhật')
+      end
+
+      def show_dialog(kind, file_name, title)
+        if @dialogs&.key?(kind)
+          @dialogs[kind].show
+          return
+        end
+
+          create_dialog(kind, file_name, title)
+        refresh_dialog(kind)
+        @dialogs[kind].show
+      end
+
+      def create_dialog(kind, file_name, title)
+        @dialogs ||= {}
+        dialog = UI::HtmlDialog.new(
+          dialog_title: title,
+          preferences_key: "tt_pro_#{kind}",
           scrollable: false,
           resizable: true,
           width: 420,
-          height: 510,
+          height: kind == :board ? 560 : 390,
           style: UI::HtmlDialog::STYLE_DIALOG
         )
-        @dialog.set_file(File.join(__dir__, 'dialog.html'))
-        register_callbacks
-        @dialog.set_on_closed { @dialog = nil }
+        dialog.set_file(File.join(__dir__, file_name))
+        @dialogs[kind] = dialog
+        register_callbacks(kind, dialog)
+        dialog.set_on_closed { @dialogs.delete(kind) }
       end
 
-      def register_callbacks
-        @dialog.add_action_callback('remove_material') do |_context|
+      def register_callbacks(kind, dialog)
+        if kind == :remove
+          dialog.add_action_callback('remove_material') do |_context|
           result = remove_selected_material
-          @dialog.execute_script("window.TTMaterial.status(#{result.to_json})")
-          refresh_dialog
+            dialog.execute_script("window.TTMaterial.status(#{result.to_json})")
+            refresh_dialog(:remove)
+          end
+        elsif kind == :board
+          dialog.add_action_callback('draw_board') do |_context, thickness_mm|
+            start_board_tool(thickness_mm, dialog)
+          end
+        elsif kind == :update
+          dialog.add_action_callback('check_update') do |_context|
+            dialog.execute_script("window.TTMaterial.status('Đang kiểm tra bản cập nhật...')")
+            check_for_update(dialog)
+          end
         end
 
-        @dialog.add_action_callback('refresh') do |_context|
-          refresh_dialog
-        end
-
-        @dialog.add_action_callback('check_update') do |_context|
-          @dialog.execute_script("window.TTMaterial.status('Đang kiểm tra bản cập nhật...')")
-          check_for_update
-        end
-
-        @dialog.add_action_callback('draw_board') do |_context, thickness_mm|
-          start_board_tool(thickness_mm)
+        dialog.add_action_callback('refresh') do |_context|
+          refresh_dialog(kind)
         end
       end
 
-      def refresh_dialog
-        return unless @dialog
+      def refresh_dialog(kind)
+        dialog = @dialogs&.[](kind)
+        return unless dialog
 
         model = Sketchup.active_model
         payload = {
@@ -65,7 +87,7 @@ module TT
           selection: model.selection.length,
           version: VERSION
         }
-        @dialog.execute_script("window.TTMaterial.refresh(#{payload.to_json})")
+        dialog.execute_script("window.TTMaterial.refresh(#{payload.to_json})")
       end
 
       def remove_selected_material
@@ -91,16 +113,16 @@ module TT
         "Không thể xóa vật liệu: #{error.message}"
       end
 
-      def start_board_tool(thickness_mm)
+      def start_board_tool(thickness_mm, dialog)
         thickness = Float(thickness_mm) / 25.4
         raise 'Độ dày phải lớn hơn 0 mm.' unless thickness.positive?
 
-        Sketchup.active_model.select_tool(BoardTool.new(thickness, @dialog))
-        @dialog.execute_script("window.TTMaterial.status('Đang vẽ: click góc thứ nhất, rồi click góc chéo đối diện.')")
+        Sketchup.active_model.select_tool(BoardTool.new(thickness, dialog))
+        dialog.execute_script("window.TTMaterial.status('Đang vẽ: click góc thứ nhất, rồi click góc chéo đối diện.')")
       rescue ArgumentError
-        @dialog.execute_script("window.TTMaterial.status('Vui lòng nhập độ dày hợp lệ bằng mm.')")
+        dialog.execute_script("window.TTMaterial.status('Vui lòng nhập độ dày hợp lệ bằng mm.')")
       rescue StandardError => error
-        @dialog.execute_script("window.TTMaterial.status(#{error.message.to_json})")
+        dialog.execute_script("window.TTMaterial.status(#{error.message.to_json})")
       end
 
       def clear_material(entity, material)
@@ -129,29 +151,29 @@ module TT
         changed
       end
 
-      def check_for_update
+      def check_for_update(dialog)
         unless UPDATE_MANIFEST_URL.empty?
           uri = URI.parse(UPDATE_MANIFEST_URL)
           manifest = JSON.parse(Net::HTTP.get(uri))
           latest = manifest.fetch('version')
           if Gem::Version.new(latest) > Gem::Version.new(VERSION)
-            install_update(manifest)
+            install_update(manifest, dialog)
           else
-            @dialog.execute_script("window.TTMaterial.status('Bạn đang dùng phiên bản mới nhất (#{VERSION}).')")
+            dialog.execute_script("window.TTMaterial.status('Bạn đang dùng phiên bản mới nhất (#{VERSION}).')")
           end
           return
         end
 
-        @dialog.execute_script("window.TTMaterial.status('Nút cập nhật đã sẵn sàng. Hãy cấu hình UPDATE_MANIFEST_URL trong main.rb để dùng máy chủ phát hành.')")
+        dialog.execute_script("window.TTMaterial.status('Nút cập nhật đã sẵn sàng. Hãy cấu hình UPDATE_MANIFEST_URL trong main.rb để dùng máy chủ phát hành.')")
       rescue StandardError => error
-        @dialog.execute_script("window.TTMaterial.status(#{"Không kiểm tra được cập nhật: #{error.message}".to_json})")
+        dialog.execute_script("window.TTMaterial.status(#{"Không kiểm tra được cập nhật: #{error.message}".to_json})")
       end
 
-      def install_update(manifest)
+      def install_update(manifest, dialog)
         download_url = URI.parse(manifest.fetch('url'))
         raise 'URL cập nhật phải dùng HTTPS.' unless download_url.scheme == 'https'
 
-        @dialog.execute_script("window.TTMaterial.status('Đang tải bản cập nhật...')")
+        dialog.execute_script("window.TTMaterial.status('Đang tải bản cập nhật...')")
         temporary_file = Tempfile.new(['tt-xoa-vat-lieu-', '.rbz'])
         temporary_file.binmode
         response = download_with_redirects(download_url)
@@ -161,7 +183,7 @@ module TT
         temporary_file.close
         Sketchup.install_from_archive(temporary_file.path)
         load File.join(__dir__, 'main.rb')
-        @dialog.execute_script("window.TTMaterial.status('Đã cập nhật lên phiên bản #{manifest.fetch('version')}. Không cần khởi động lại SketchUp.')")
+        dialog.execute_script("window.TTMaterial.status('Đã cập nhật lên phiên bản #{manifest.fetch('version')}. Không cần khởi động lại SketchUp.')")
       ensure
         temporary_file&.close!
       end
@@ -318,27 +340,38 @@ module TT
     end
 
     unless file_loaded?(__FILE__)
-      command = UI::Command.new(MENU_LABEL) { show_dialog }
-      command.tooltip = MENU_LABEL
-      command.status_bar_text = 'Mở công cụ xóa vật liệu đang chọn'
       icon_path = File.join(__dir__, 'icon.svg')
-      command.small_icon = icon_path
-      command.large_icon = icon_path
-
-      menu = UI.menu('Extensions')
-      menu.add_item(command)
-
       toolbar = UI::Toolbar.new('TT - Xóa vật liệu')
-      toolbar.add_item(command)
-      board_command = UI::Command.new('Vẽ ván bằng chuột') { show_dialog }
+
+      remove_command = UI::Command.new('Xóa vật liệu đang chọn') { show_remove_dialog }
+      remove_command.tooltip = 'Xóa vật liệu đang chọn'
+      remove_command.status_bar_text = 'Mở bảng xóa vật liệu'
+      remove_command.small_icon = icon_path
+      remove_command.large_icon = icon_path
+      toolbar.add_item(remove_command)
+
+      board_command = UI::Command.new('Vẽ ván bằng chuột') { show_board_dialog }
       board_command.tooltip = 'Vẽ ván bằng chuột'
       board_command.status_bar_text = 'Mở công cụ vẽ ván bằng chuột'
       board_icon_path = File.join(__dir__, 'board_icon.svg')
       board_command.small_icon = board_icon_path
       board_command.large_icon = board_icon_path
-      menu.add_item(board_command)
       toolbar.add_item(board_command)
+
+      update_command = UI::Command.new('Kiểm tra bản cập nhật') { show_update_dialog }
+      update_command.tooltip = 'Kiểm tra bản cập nhật'
+      update_command.status_bar_text = 'Mở bảng cập nhật TT-pro'
+      update_command.small_icon = icon_path
+      update_command.large_icon = icon_path
+      toolbar.add_item(update_command)
+
       toolbar.show
+      menu = UI.menu('Extensions')
+      command = UI::Command.new(MENU_LABEL) { show_remove_dialog }
+      command.tooltip = 'Xóa vật liệu đang chọn'
+      menu.add_item(command)
+      menu.add_item(board_command)
+      menu.add_item(update_command)
       file_loaded(__FILE__)
     end
   end

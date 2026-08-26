@@ -17,7 +17,7 @@ Nguoi choi co quyen `antifly.alert` (mac dinh la operator) se nhan duoc canh bao
 ## SketchUp extension
 
 Extension: **TT - Xóa vật liệu**  
-Version: **1.0.13**  
+Version: **1.0.14**  
 Creator: **TRẦN TUẤN**
 
 ### Chức năng
@@ -33,7 +33,9 @@ Creator: **TRẦN TUẤN**
 ### Cài đặt RBZ
 
 1. Mở SketchUp > `Extension Manager` > `Install Extension`.
-2. Chọn file `TT-pro-1.0.13.rbz`.
+2. Chọn file `TT-pro-1.0.14.rbz`.
+
+Có thể cài riêng từng chức năng bằng các file `TT-pro-XoaVatLieu-1.0.14.rbz`, `TT-pro-VeVan-1.0.14.rbz` hoặc `TT-pro-CapNhat-1.0.14.rbz`. Gói `TT-pro-1.0.14.rbz` là bản tổng hợp.
 3. Vào `Extensions > TT - Xóa vật liệu`.
 4. Chọn vật liệu trong bảng Materials, chọn mặt/group/component, rồi bấm `Xóa vật liệu đang chọn`.
 

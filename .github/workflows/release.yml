@@ -38,22 +38,25 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build RBZ
+      - name: Build separate RBZ packages
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          test -f TT-pro.rb
-          test -f TT-pro/main.rb
-          ASSET="TT-pro-${VERSION}.rbz"
-          zip -qr "$ASSET" TT-pro.rb TT-pro
-          echo "asset=$ASSET" >> "$GITHUB_ENV"
+          for package in XoaVatLieu VeVan CapNhat; do
+            zip -qr "TT-pro-${package}-${VERSION}.rbz" "TT-pro-${package}.rb" "TT-pro-${package}"
+          done
+          zip -qr "TT-pro-${VERSION}.rbz" TT-pro.rb TT-pro
 
       - name: Create GitHub Release and upload RBZ
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$TAG" "$asset" \
+          gh release create "$TAG" \
+            TT-pro-XoaVatLieu-${{ steps.version.outputs.version }}.rbz \
+            TT-pro-VeVan-${{ steps.version.outputs.version }}.rbz \
+            TT-pro-CapNhat-${{ steps.version.outputs.version }}.rbz \
+            TT-pro-${{ steps.version.outputs.version }}.rbz \
             --repo "$GITHUB_REPOSITORY" \
             --title "TT-pro $TAG" \
             --generate-notes
